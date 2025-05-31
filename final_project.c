@@ -14,9 +14,17 @@ typedef struct Tile{
 
 
 void visualize(Tile *map, int nc, int nr){
-	for(int i = 0; i < nr; i++){
-		for(int j = 0; j < nc; j++){
-			printf("%d ", map[i+j*nr].travel_cost);
+	for(int y = 0; y < nr; y++){
+		if(y % 2 == 1){
+			printf(" ");
+		}
+		for(int x = 0; x < nc; x++){
+			printf("%d ", map[y+x*nr].travel_cost);
+			/*
+			int d = y;
+			int o = x+((y+1)>>1);
+			printf("%d,%d  ",o, d);
+			*/
 		}
 		printf("\n");
 	}
@@ -54,9 +62,28 @@ void change_cost(Tile *map, int x, int y, int v, int r){
 		return;
 	}
 	map[x+y].travel_cost = v;
-
 }
 
+
+int hex_distance(Tile *map, int start_x, int start_y, int dest_x, int dest_y){
+
+	//start_d e dest_d si puossono evitare per risparmiare un po' di memoria i guess
+	int start_d = start_y;
+	int start_o = start_x + ((start_y+1)>>1);
+	int start_q = start_d - start_o;
+
+	int dest_d = dest_y;
+	int dest_o = dest_x + ((dest_y+1)>>1);
+	int dest_q = dest_d - dest_o;
+
+	if(dest_o-start_o > dest_d-start_d){
+		return abs(dest_o-start_o);
+	}
+	if(dest_q-start_q > dest_d-start_d){
+		return abs(dest_q-start_q);
+	}
+	return abs(dest_d-start_d);
+}
 
 int main(){
 
@@ -66,13 +93,11 @@ int main(){
 	int ch_c, ch_r, v, r;
 
 	while(scanf(" %s", cmd) != EOF){
-
 		//	init()
 		if(!strcmp(cmd, "init")){
 			scanf(" %d %d", &init_c, &init_r);
 			map = init(init_c, init_r, map);
 		}
-
 		//	change_cost()
 		else if(!strcmp(cmd, "change_cost")){
 			scanf(" %d %d %d %d", &ch_c, &ch_r, &v, &r);
@@ -83,17 +108,9 @@ int main(){
 				printf("Out of bounds\n");
 			}
 		}
-
-
 		visualize(map, init_c, init_r);
+
 	}
-
-
-
-	//map = init(10, 20, map);
-	//change_cost(map, 1, 2, 3, 4);
-
-	
 
 	free(map);
 	return 0;

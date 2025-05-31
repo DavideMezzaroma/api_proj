@@ -1,0 +1,4 @@
+init 5 5
+change_cost 1 1 2 1
+change_cost 2 3 2 1
+change_cost 3 3 2 1
