@@ -1,3 +1,4 @@
 init 8 11
-travel_cost 1 1 5 5
+change_cost 3 2 3 5
+travel_cost 0 0 3 0 
 v
