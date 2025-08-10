@@ -384,6 +384,7 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 	while(heap->length > 0 && !found){
 		Tile *curr_tile = pop(heap);
 		if(curr_tile == &map[dest_idx]){
+			found = 1;
 		}
 		curr_tile->dijkstra_visited = VISITED;
 
@@ -430,16 +431,17 @@ int main(){
 	Tile *map = NULL;
 	char cmd[MAX_CMD];
 	int par_a, par_b, par_c, par_d;
+	int useless;
 
 	while(scanf(" %s", cmd) != EOF){
 		//	init()
 		if(!strcmp(cmd, "init")){
-			scanf(" %d %d", &init_c, &init_r);
+			useless = scanf(" %d %d", &init_c, &init_r);
 			map = init(init_c, init_r, map);
 		}
 		//	change_cost()
 		else if(!strcmp(cmd, "change_cost")){
-			scanf(" %d %d %d %d", &par_a, &par_b, &par_c, &par_d);
+			useless = scanf(" %d %d %d %d", &par_a, &par_b, &par_c, &par_d);
 
 			if(par_a >= 0 && par_b >= 0 && par_a < init_c && par_b < init_r && par_d > 0){
 				change_cost(map, par_a, par_b, par_c, par_d);
@@ -450,7 +452,7 @@ int main(){
 		}
 		//	toggle_air_route()
 		else if(!strcmp(cmd, "toggle_air_route")){
-			scanf(" %d %d %d %d", &par_a, &par_b, &par_c, &par_d);
+			useless = scanf(" %d %d %d %d", &par_a, &par_b, &par_c, &par_d);
 			if(par_a < 0 || par_a >= init_c || par_b < 0 || par_b >= init_r ||
 			   par_c < 0 || par_c >= init_c || par_d < 0 || par_d >= init_r){
 				printf("KO\n");
@@ -460,7 +462,7 @@ int main(){
 			}
 		}
 		else if(!strcmp(cmd, "travel_cost")){
-			scanf(" %d %d %d %d", &par_a, &par_b, &par_c, &par_d);
+			useless = scanf(" %d %d %d %d", &par_a, &par_b, &par_c, &par_d);
 			if(par_a == par_c && par_b == par_d){
 				printf("0\n");			//se inizio e destinazione sono uguali stampa 0
 			}
@@ -475,6 +477,7 @@ int main(){
 		else if(!strcmp(cmd, "v")){
 			visualize(map);
 		}
+		(void)useless;
 
 	}
 
