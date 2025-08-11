@@ -386,7 +386,7 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 		Tile *curr_tile = pop(heap);
 		if(curr_tile == &map[dest_idx]){
 			found = 1;
-			//break;
+			break;
 		}
 		//se la cella attuale ha costo negativo oppure e' gia' stata visitata saltala
 		if(curr_tile->travel_cost <= 0 || curr_tile->dijkstra_visited == VISITED){
@@ -395,25 +395,30 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 		curr_tile->dijkstra_visited = VISITED;
 
 
-		for(int i = 0; i < 6 && curr_tile->travel_cost>0; ++i){
+		for(int i = 0; i < 6; ++i){
 			int adj_o = curr_tile->o+adjacents[i][0];
 			int adj_d = curr_tile->d+adjacents[i][1];
 			int adj_x = adj_o - ((adj_d+1)>>1);
 
-		//controllo che la cella non sia fuori dalla mappa
-			if(adj_d >= 0 && adj_d < init_r && adj_x >= 0 && adj_x < init_c){
-				Tile *adjacent = &map[adj_x * init_r + adj_d];
-				int total_cost = curr_tile->dijkstra_cost + curr_tile->travel_cost;
-				if(total_cost < adjacent->dijkstra_cost){
-					adjacent->dijkstra_cost = total_cost;
-					push(heap, adjacent);
-				}
+			//controllo che la cella non sia fuori dalla mappa
+			if(adj_d < 0 || adj_d >= init_r || adj_x < 0 || adj_x >= init_c){
+				continue;
+			}
+
+			Tile *adjacent = &map[adj_x * init_r + adj_d];
+			if(adjacent->dijkstra_visited == VISITED){
+				continue;
+			}
+			int total_cost = curr_tile->dijkstra_cost + curr_tile->travel_cost;
+			if(total_cost < adjacent->dijkstra_cost){
+				adjacent->dijkstra_cost = total_cost;
+				push(heap, adjacent);
 			}
 		}
 
 		for(int i = 0; i < curr_tile->num_air_routes; ++i){
 			Tile *air_dest = curr_tile->routes[i].dest;
-			if(curr_tile->routes[i].cost < 0){
+			if(curr_tile->routes[i].cost <= 0 || air_dest->dijkstra_visited == VISITED){
 				continue;
 			}
 			int total_cost = curr_tile->dijkstra_cost + curr_tile->routes[i].cost;
