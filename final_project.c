@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define MAX_ROUTES 5
 #define MAX_CMD 20
@@ -38,10 +39,15 @@ typedef struct Queue{
 	int head, tail, size;
 } Queue;
 
+typedef struct HeapItem{
+	int cost;
+	Tile *dest;
+} HeapItem;
+
 typedef struct MinHeap{
-	Tile **tiles;
+	HeapItem *items;
 	int size, length;
-}MinHeap;
+} MinHeap;
 
 
 //-------------------------LOGICA DELLA QUEUE------------------------------
@@ -85,19 +91,19 @@ Tile *dequeue(Queue *queue, int *distance){
 
 MinHeap *create_minheap(int heap_size){
 	MinHeap *heap = malloc(sizeof(MinHeap));
-	heap->tiles = malloc(heap_size * sizeof(Tile*));
+	heap->items = malloc(heap_size * sizeof(HeapItem));
 	heap->length = 0;
 	heap->size = heap_size;
 	return heap;
 }
 
 void heap_swap(MinHeap *heap, int a, int b){
-	Tile *tmp = heap->tiles[a];
-	heap->tiles[a] = heap->tiles[b];
-	heap->tiles[b] = tmp;
+	HeapItem tmp = heap->items[a];
+	heap->items[a] = heap->items[b];
+	heap->items[b] = tmp;
 }
 
-void push(MinHeap *heap, Tile *tile){
+void push(MinHeap *heap, Tile *tile, int dijkstra_cost){
 	//se l'heap e' gia' pieno return
 	if(heap->length == heap->size){
 		return;
@@ -105,13 +111,14 @@ void push(MinHeap *heap, Tile *tile){
 
 	//altrimenti aggiungi in fondo all'array e poi riordinalo come heap
 	int curr_idx = heap->length;
-	heap->tiles[curr_idx] = tile;
+	heap->items[curr_idx].dest = tile;
+	heap->items[curr_idx].cost = dijkstra_cost;
 
 	int is_heap = 0;		//flag per determinare quando smettere di riordinare
 	while(!is_heap){
 		int parent_idx = (curr_idx - 1) / 2;
 
-		if(heap->tiles[curr_idx]->dijkstra_cost < heap->tiles[parent_idx]->dijkstra_cost){
+		if(heap->items[curr_idx].cost < heap->items[parent_idx].cost){
 			heap_swap(heap, curr_idx, parent_idx);
 			curr_idx = parent_idx;
 		}
@@ -123,29 +130,32 @@ void push(MinHeap *heap, Tile *tile){
 	heap->length += 1;
 }
 
-Tile* pop(MinHeap *heap){
+HeapItem pop(MinHeap *heap){
 	//se l'heap e' vuoto return NULL
+	/*
 	if(heap->length == 0){
 		return NULL;
 	}
+	*/
 	//altrimenti prendi il primo elemento dell'array, riordina l'heap e returna la tile
-	Tile *first = heap->tiles[0];
-	heap->tiles[0] = heap->tiles[heap->length-1];
+	HeapItem first = heap->items[0];
+	heap->items[0] = heap->items[heap->length-1];
 	heap->length -= 1;
 
 	int is_heap = 0;		//flag per determinare quando smettere di riordinare
 	int curr_idx = 0;
+	//forse spostare qui le dichiarazioni di lchild rchild e newfirst
 	while(!is_heap){
 		int lchild_idx = (curr_idx * 2) + 1;
 		int rchild_idx = (curr_idx * 2) + 2;
 		int new_first_idx = curr_idx;
 
 		//se l'array e' sufficientemente lungo && il figlio sinistro ha costo minore del nuovo primo li scambio
-		if(lchild_idx < heap->length && heap->tiles[lchild_idx]->dijkstra_cost < heap->tiles[new_first_idx]->dijkstra_cost){
+		if(lchild_idx < heap->length && heap->items[lchild_idx].cost < heap->items[new_first_idx].cost){
 			new_first_idx = lchild_idx;
 		}
 		//analogamente per il figlio destro
-		if(rchild_idx < heap->length && heap->tiles[rchild_idx]->dijkstra_cost < heap->tiles[new_first_idx]->dijkstra_cost){
+		if(rchild_idx < heap->length && heap->items[rchild_idx].cost < heap->items[new_first_idx].cost){
 			new_first_idx = rchild_idx;
 		}
 
@@ -164,7 +174,7 @@ Tile* pop(MinHeap *heap){
 
 //---------------------FUNZIONI DI AUSILIO-------------------------
 
-void visualize(Tile *map){
+void visualize(Tile *map, int opt){
 	printf("\n\n");
 	for(int y = 0; y < init_r; y++){
 		if(y % 2 == 1){
@@ -172,61 +182,22 @@ void visualize(Tile *map){
 		}
 		for(int x = 0; x < init_c; x++){
 			//printf("%d,%d ", map[y+x*init_r].o, map[y+x*nr].d);
-			printf("%d ", map[y+x*init_r].travel_cost);
-			//printf("%c ", map[y+x*init_r].queue_state);
-			//printf("%d ", map[y+x*init_r].num_air_routes);
-			//printf("%d ", map[y+x*init_r].routes[0].cost);
+			if(opt == 0){
+				printf("%d ", map[y+x*init_r].travel_cost);
+			}
+			if(opt == 1){
+				if(map[y+x*init_r].dijkstra_cost == INF){
+					printf("0 ");
+				}
+				else{
+					printf("%d ", map[y+x*init_r].dijkstra_cost);
+				}
+			}
 		}
 		printf("\n");
 	}
 }
 
-//resituisce l'indice della tile corretta all'interno della mappa (da' le coordinate xy, date le od)
-int tile_od(int o, int d, Tile *map){
-	int x = o - ((d+1)>>1);
-	//printf("%d,%d ", x, d);
-	return x*init_r+d;
-}
-
-//resituisce la coordinata o, date xy. y e' uguale a d, quindi non serve ricalcolarla
-int tile_xy(int x, int y, Tile *map){
-	int o = x + ((y+1)>>1);
-	return o;
-}
-
-//TODO: da rifare tutta questa funzione in qualche altro modo perche' e' oscena
-int hex_distance(Tile *map, int start_x, int start_y, int dest_x, int dest_y){
-
-	//start_d e dest_d si possono sostituire con y per risparmiare un po' di memoria i guess
-	int start_d = start_y;
-	int start_o = tile_xy(start_x, start_y, map);
-	int start_q = start_d - start_o;
-
-	int dest_d = dest_y;
-	int dest_o = tile_xy(dest_x, dest_y, map);
-	int dest_q = dest_d - dest_o;
-
-	if(dest_o-start_o > dest_d-start_d){
-		return abs(dest_o-start_o);
-	}
-	if(dest_q-start_q > dest_d-start_d){
-		return abs(dest_q-start_q);
-	}
-	return abs(dest_d-start_d);
-}
-
-
-/*
-void visit_adj(Tile start, Tile *map){
-	map[start.x*init_r+start.y].queue_state = IN_QUEUE;
-	for(int i = 0; i < 6; ++i){
-		int curr_tile = tile_od(start.o+adjacents[i][0], start.d+adjacents[i][1], map);
-		if(map[curr_tile].queue_state == NOT_IN_QUEUE){
-			map[curr_tile].queue_state = IN_QUEUE;
-		}
-	}
-}
-*/
 
 //-----------------------------FUNZIONI RICHIESTE DAL PROGETTO----------------------------
 
@@ -283,7 +254,25 @@ void change_cost(Tile *map, int x, int y, int v, int r){
 		Tile *curr_tile = dequeue(queue, &curr_dist);	//passando la distanza posso modificarla nella funzione
 		//questa e' inizializzata a 0 per la chiamata enqueue sul centro, quindi da ora la incremento di 1 ogni
 		//volta che passo ad un anello piu' largo, senza chiamare hex_distance()
-		int increment = v * (r - curr_dist) / r;	//calcolo l'incremento da fare
+
+
+		int increment;
+		/*
+		int num = v * (r - curr_dist);
+		if(num >= 0){
+			increment = num / r;
+		}
+		else{
+			increment = (num - r + 1) / r;
+		}
+		*/
+
+		increment = (v * (r - curr_dist)) / r;
+		if(v < 0){
+			increment = floor(increment - 1);
+		}
+
+		//int increment = v * (r - curr_dist) / r;	//calcolo l'incremento da fare
 		curr_tile->travel_cost += increment;		//incremento sia il costo della cella che delle sue rotte aeree
 		for(int i = 0; i < curr_tile->num_air_routes; ++i){
 			curr_tile->routes[i].cost += increment;
@@ -377,19 +366,30 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 	int max_heap_size = 11 * init_r * init_c;
 	MinHeap *heap = create_minheap(max_heap_size);
 	map[start_idx].dijkstra_cost = 0;
-	push(heap, &map[start_idx]);
+	push(heap, &map[start_idx], 0);
 
 
 	int found = 0;
 	//finche' c'e' qualcosa "in coda" e non e' gia' stato trovato un percorso esegui il loop
 	while(heap->length > 0 && !found){
-		Tile *curr_tile = pop(heap);
+		HeapItem curr_item = pop(heap);
+		Tile *curr_tile = curr_item.dest;
+		//printf("x, y: %d %d; dcost: %d\n", curr_tile->o-((curr_tile->d+1)>>1), curr_tile->d, curr_tile->dijkstra_cost);
+
+		//se la cella attuale ha costo in heap diverso da quello di dijkstra significa che e' stata modificata dopo essere stata inserita nell'heap e va scartata
+		if(curr_item.cost != curr_tile->dijkstra_cost){
+			continue;
+		}
+		//se ho trovato la destinazione esco subito
 		if(curr_tile == &map[dest_idx]){
 			found = 1;
 			break;
 		}
 		//se la cella attuale ha costo negativo oppure e' gia' stata visitata saltala
-		if(curr_tile->travel_cost <= 0 || curr_tile->dijkstra_visited == VISITED){
+		if(curr_tile->travel_cost <= 0){
+			continue;
+		}
+		if(curr_tile->dijkstra_visited == VISITED){
 			continue;
 		}
 		curr_tile->dijkstra_visited = VISITED;
@@ -399,6 +399,7 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 			int adj_o = curr_tile->o+adjacents[i][0];
 			int adj_d = curr_tile->d+adjacents[i][1];
 			int adj_x = adj_o - ((adj_d+1)>>1);
+
 
 			//controllo che la cella non sia fuori dalla mappa
 			if(adj_d < 0 || adj_d >= init_r || adj_x < 0 || adj_x >= init_c){
@@ -412,7 +413,7 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 			int total_cost = curr_tile->dijkstra_cost + curr_tile->travel_cost;
 			if(total_cost < adjacent->dijkstra_cost){
 				adjacent->dijkstra_cost = total_cost;
-				push(heap, adjacent);
+				push(heap, adjacent, adjacent->dijkstra_cost);
 			}
 		}
 
@@ -424,7 +425,7 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 			int total_cost = curr_tile->dijkstra_cost + curr_tile->routes[i].cost;
 			if(total_cost < air_dest->dijkstra_cost){
 				air_dest->dijkstra_cost = total_cost;
-				push(heap, air_dest);
+				push(heap, air_dest, air_dest->dijkstra_cost);
 			}
 		}
 	}
@@ -435,7 +436,7 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 		printf("-1\n");
 	}
 
-	free(heap->tiles);
+	free(heap->items);
 	free(heap);
 }
 
@@ -492,7 +493,9 @@ int main(){
 			}
 		}
 		else if(!strcmp(cmd, "v")){
-			visualize(map);
+			int opt;
+			useless = scanf(" %d", &opt);
+			visualize(map, opt);
 		}
 		(void)useless;
 
