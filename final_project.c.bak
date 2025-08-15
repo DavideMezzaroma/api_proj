@@ -10,10 +10,9 @@
 #define IN_QUEUE 'Q'
 #define VISITED 'V'
 #define NOT_IN_QUEUE 'N'
-#define MAX_CACHE 200
 
 int adjacents[6][2] = {{0, 1}, {1, 1}, {1, 0}, {0, -1}, {-1, -1}, {-1, 0}};	//formato {o, d}
-int init_r, init_c, cache_size;
+int init_r, init_c, tot_air_routes;
 
 typedef struct Tile Tile;		//forward declaration per evitare errori
 
@@ -49,14 +48,6 @@ typedef struct MinHeap{
 	int size, length;
 } MinHeap;
 
-typedef struct DistCache{
-	int start_idx;
-	int dest_idx;
-	int cost;
-} DistCache;
-//forse fare una cache con hashmap??
-
-DistCache cache[MAX_CACHE];
 
 //-------------------------LOGICA DELLA QUEUE------------------------------
 
@@ -89,6 +80,7 @@ Tile *dequeue(Queue *queue, int *distance){
 	}
 	//estraggo la cella in testa dall'array di celle, sposto il contatore della testa della coda
 	Tile *tile = queue->tiles[queue->head];
+	//tile->queue_state = VISITED;
 	*distance = queue->distances[queue->head];//modifico la distanza passata per indirizzo cosi' da averla sempre pronta
 	queue->head += 1;
 	return tile;
@@ -172,14 +164,6 @@ HeapItem pop(MinHeap *heap){
 	return first;
 }
 
-void reset_cache(){
-	for(int i = 0; i < cache_size; ++i){
-		cache[i].start_idx = -1;
-		cache[i].dest_idx = -1;
-		cache[i].cost = -1;
-	}
-	cache_size = 0;
-}
 
 //---------------------FUNZIONI DI AUSILIO-------------------------
 
@@ -229,12 +213,6 @@ Tile* init(int num_c, int num_r, Tile *map){
 			map[i].dijkstra_cost = INF;
 			map[i].dijkstra_visited = NOT_IN_QUEUE;		//riutilizzo le flag definite per la coda
 		}
-		for(int i = 0; i < MAX_CACHE; ++i){
-			cache[i].start_idx = -1;
-			cache[i].dest_idx = -1;
-			cache[i].cost = -1;
-		}
-		cache_size = 0;
 	}
 	else{
 		printf("Errore durante l'allocazione dinamica\n");
@@ -256,8 +234,6 @@ void change_cost(Tile *map, int x, int y, int v, int r){
 		printf("KO\n");			//valore di v non valido
 		return;
 	}
-
-	reset_cache();
 	
 	//in base al raggio calcolo quante celle devo mettere nella coda e alloco una coda della dimensione giusta
 	int max_queue_size = 1 + 3 * r * (r - 1);
@@ -325,8 +301,8 @@ void toggle_air_route(Tile *map, int start_x, int start_y, int dest_x, int dest_
 				start->routes[j] = start->routes[j+1];		//sposto indietro tutte le rimanenti rotte
 			}
 				start->num_air_routes -= 1;			//decremento il numero di rotte della cella
+				tot_air_routes -= 1;
 				
-			reset_cache();
 			printf("OK\n");
 			return;
 		}
@@ -347,7 +323,7 @@ void toggle_air_route(Tile *map, int start_x, int start_y, int dest_x, int dest_
 	start->routes[start->num_air_routes].dest = &map[dest_x * init_r + dest_y];
 	start->routes[start->num_air_routes].cost = average;
 	start->num_air_routes += 1;
-	reset_cache();
+	tot_air_routes += 1;
 	printf("OK\n");
 }
 
@@ -356,23 +332,10 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 
 	int start_idx = start_x * init_r + start_y;
 	int dest_idx = dest_x * init_r + dest_y;
-	int need_caching = 0;
 	
 	for(int i = 0; i < init_r * init_c; ++i){
 		map[i].dijkstra_cost = INF;
 		map[i].dijkstra_visited = NOT_IN_QUEUE;
-	}
-	for(int i = 0; i < cache_size; ++i){
-		if(start_idx == cache[i].start_idx && dest_idx == cache[i].dest_idx){
-			printf("%d\n", cache[i].cost);
-			return;
-		}
-	}
-
-	if(cache_size < MAX_CACHE){
-		cache[cache_size].start_idx = start_idx;
-		cache[cache_size].dest_idx = dest_idx;
-		need_caching = 1;
 	}
 
 	int max_heap_size = init_r * init_c;
@@ -440,17 +403,9 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 		}
 	}
 	if(found){
-		if(need_caching){
-			cache[cache_size].cost = map[dest_idx].dijkstra_cost;
-			cache_size += 1;
-		}
 		printf("%d\n", map[dest_idx].dijkstra_cost);
 	}
 	else{
-		if(need_caching){
-			cache[cache_size].cost = -1;
-			cache_size += 1;
-		}
 		printf("-1\n");
 	}
 	free(heap->items);
