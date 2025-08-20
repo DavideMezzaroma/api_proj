@@ -25,14 +25,13 @@ typedef struct AirRoute{
 typedef struct Tile{
 	int travel_cost;
 	int num_air_routes;
-	//AirRoute routes[MAX_ROUTES];
-	AirRoute *routes;
+	char queue_state;
 	//int x, y; 
 	int o, d; 		//comprende il sistema di coordinate cartesiane e diagonali
+	//AirRoute routes[MAX_ROUTES];
+	AirRoute *routes;
 	int dijkstra_cost;		//costo temporaneo per algoritmo di Dijkstra
-	//char queue_state;
-	//char dijkstra_visited;		//flag per controllare se una cella e' gia' stata visitata con Dijkstra
-	char queue_dijkstra_state;
+	char dijkstra_visited;		//flag per controllare se una cella e' gia' stata visitata con Dijkstra
 } Tile;
 
 typedef struct Queue{
@@ -216,6 +215,7 @@ void visualize(Tile *map, int opt){
 			printf(" ");
 		}
 		for(int x = 0; x < init_c; x++){
+			//printf("%d,%d ", map[y+x*init_r].o, map[y+x*nr].d);
 			if(opt == 0){
 				printf("%d ", map[y+x*init_r].travel_cost);
 			}
@@ -247,14 +247,13 @@ Tile* init(int num_c, int num_r, Tile *map){
 			map[i].travel_cost = 1;
 			map[i].num_air_routes = 0;
 			map[i].routes = NULL;
-			//map[i].queue_state = NOT_IN_QUEUE;
-			//map[i].dijkstra_visited = NOT_IN_QUEUE;		//riutilizzo le flag definite per la coda
-			map[i].queue_dijkstra_state = NOT_IN_QUEUE;
+			map[i].queue_state = NOT_IN_QUEUE;
 			//map[i].y = i % num_c;
 			//map[i].x = i / num_r;
 			map[i].d = i % num_r;
 			map[i].o = (i / num_r) + ((map[i].d+1)>>1);
 			map[i].dijkstra_cost = INF;
+			map[i].dijkstra_visited = NOT_IN_QUEUE;		//riutilizzo le flag definite per la coda
 		}
 		for(int i = 0; i < MAX_CACHE; ++i){
 			cache[i].start_idx = -1;
@@ -292,8 +291,7 @@ void change_cost(Tile *map, int x, int y, int v, int r){
 	Tile *center = &map[x * init_r + y];
 	Queue *queue = create_queue(max_queue_size);
 	enqueue(queue, center, 0);		//metto in coda il centro, con distanza 0
-	//center->queue_state = IN_QUEUE;
-	center->queue_dijkstra_state = IN_QUEUE;
+	center->queue_state = IN_QUEUE;
 
 	while(queue->head != queue->tail){
 		int curr_dist;
@@ -322,12 +320,8 @@ void change_cost(Tile *map, int x, int y, int v, int r){
 				if(adj_d >= 0 && adj_d < init_r && adj_x >= 0 && adj_x < init_c){
 					//se non e' in coda, lo aggiungo (non deve essere ne' in coda ne' gia' visitato)
 					Tile *neighbor = &map[adj_x * init_r + adj_d];
-					/*
 					if(neighbor->queue_state == NOT_IN_QUEUE){
 						neighbor->queue_state = IN_QUEUE;
-					*/
-					if(neighbor->queue_dijkstra_state == NOT_IN_QUEUE){
-						neighbor->queue_dijkstra_state = IN_QUEUE;
 						enqueue(queue, neighbor, curr_dist+1);
 					}
 				}
@@ -336,8 +330,7 @@ void change_cost(Tile *map, int x, int y, int v, int r){
 	}
 	//una volta finita tutta quanta la coda, riuso lo stesso array per pulire i queue_state delle celle interessate
 	for(int i = 0; i < queue->tail; ++i){
-		//queue->tiles[i]->queue_state = NOT_IN_QUEUE;
-		queue->tiles[i]->queue_dijkstra_state = NOT_IN_QUEUE;
+		queue->tiles[i]->queue_state = NOT_IN_QUEUE;
 	}
 	free(queue->tiles);
 	free(queue->distances);
@@ -395,6 +388,11 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 	int start_idx = start_x * init_r + start_y;
 	int dest_idx = dest_x * init_r + dest_y;
 	int need_caching = 0;
+	
+	for(int i = 0; i < init_r * init_c; ++i){
+		map[i].dijkstra_cost = INF;
+		map[i].dijkstra_visited = NOT_IN_QUEUE;
+	}
 
 	for(int i = 0; i < cache_size; ++i){
 		if(start_idx == cache[i].start_idx && dest_idx == cache[i].dest_idx){
@@ -412,15 +410,8 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 
 	int max_heap_size = init_r * init_c;
 	MinHeap *heap = create_minheap(max_heap_size);
-
-	int to_reset[max_heap_size];
-	int num_to_reset = 0;
-
 	map[start_idx].dijkstra_cost = 0;
 	push(heap, &map[start_idx], 0);
-
-	to_reset[num_to_reset] = start_idx;
-	num_to_reset += 1;
 
 
 	int found = 0;
@@ -444,12 +435,10 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 		if(curr_tile->travel_cost <= 0){
 			continue;
 		}
-		//if(curr_tile->dijkstra_visited == VISITED){
-		if(curr_tile->queue_dijkstra_state == VISITED){
+		if(curr_tile->dijkstra_visited == VISITED){
 			continue;
 		}
-		//curr_tile->dijkstra_visited = VISITED;
-		curr_tile->queue_dijkstra_state = VISITED;
+		curr_tile->dijkstra_visited = VISITED;
 
 		for(int i = 0; i < 6; ++i){
 			int adj_o = curr_tile->o+adjacents[i][0];
@@ -465,32 +454,25 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 
 			int adj_idx = adj_x * init_r + adj_d;
 			Tile *adjacent = &map[adj_idx];
-			//if(adjacent->dijkstra_visited == VISITED){
-			if(adjacent->queue_dijkstra_state == VISITED){
+			if(adjacent->dijkstra_visited == VISITED){
 				continue;
 			}
 			int total_cost = curr_tile->dijkstra_cost + curr_tile->travel_cost;
 			if(total_cost < adjacent->dijkstra_cost){
 				adjacent->dijkstra_cost = total_cost;
 				push(heap, adjacent, adjacent->dijkstra_cost);
-				to_reset[num_to_reset] = adj_idx;
-				num_to_reset += 1;
 			}
 		}
 
 		for(int i = 0; i < curr_tile->num_air_routes; ++i){
 			Tile *air_dest = curr_tile->routes[i].dest;
-			//if(curr_tile->routes[i].cost <= 0 || air_dest->dijkstra_visited == VISITED){
-			if(curr_tile->routes[i].cost <= 0 || air_dest->queue_dijkstra_state == VISITED){
+			if(curr_tile->routes[i].cost <= 0 || air_dest->dijkstra_visited == VISITED){
 				continue;
 			}
 			int total_cost = curr_tile->dijkstra_cost + curr_tile->routes[i].cost;
 			if(total_cost < air_dest->dijkstra_cost){
 				air_dest->dijkstra_cost = total_cost;
 				push(heap, air_dest, air_dest->dijkstra_cost);
-				int air_dest_idx = (air_dest->o - ((air_dest->d+1)>>1)) * init_r + air_dest->d;
-				to_reset[num_to_reset] = air_dest_idx;
-				num_to_reset += 1;
 			}
 		}
 	}
@@ -508,18 +490,6 @@ void travel_cost(Tile* map, int start_x, int start_y, int dest_x, int dest_y){
 		}
 		printf("-1\n");
 	}
-
-	/*
-	for(int i = 0; i < init_r * init_c; ++i){
-		map[i].dijkstra_cost = INF;
-		map[i].dijkstra_visited = NOT_IN_QUEUE;
-	}
-	*/
-	for(int i = 0; i < num_to_reset; ++i){
-		map[to_reset[i]].dijkstra_cost = INF;
-		map[to_reset[i]].queue_dijkstra_state = NOT_IN_QUEUE;
-	}
-
 	//free(heap->items);
 	free(heap->cost);
 	free(heap->dest);
