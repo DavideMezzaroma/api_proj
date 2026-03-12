@@ -1,0 +1,4 @@
+final_project
+*.bak
+*.txt
+Makefile

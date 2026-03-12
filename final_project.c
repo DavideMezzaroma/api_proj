@@ -352,8 +352,7 @@ void toggle_air_route(Tile *map, int start_x, int start_y, int dest_x, int dest_
 	Tile *dest = &map[dest_x * init_r + dest_y];
 
 	if(start->routes == NULL){
-		start->routes = malloc(MAX_ROUTES * sizeof(AirRoute));
-	}
+		start->routes = malloc(MAX_ROUTES * sizeof(AirRoute)); }
 
 	//se la rotta aerea gia' e' presente, rimuoverla
 	for(int i = 0; i < start->num_air_routes; ++i){
